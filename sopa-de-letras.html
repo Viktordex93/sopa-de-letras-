@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sopa de Letras - Teoría General de los Sistemas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f8ff;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 900px;
+            width: 100%;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .top-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .game-area {
+            display: flex;
+            flex-direction: row;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .word-list {
+            min-width: 200px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .word-list h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .word-list ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .word-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+        .word-list li.found {
+            color: #27ae60;
+            text-decoration: line-through;
+        }
+        .grid-container {
+            flex-grow: 1;
+        }
+        .letter-grid {
+            display: grid;
+            gap: 1px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .letter-cell {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            font-weight: bold;
+            user-select: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .letter-cell:hover {
+            background-color: #eaeaea;
+        }
+        .letter-cell.selected {
+            background-color: #3498db;
+            color: white;
+        }
+        .letter-cell.found {
+            background-color: #27ae60;
+            color: white;
+        }
+        .stats {
+            margin-top: 15px;
+            text-align: center;
+            color: #34495e;
+        }
+        .difficulty-select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sopa de Letras - Teoría General de los Sistemas</h1>
+    
+    <div class="game-container">
+        <div class="top-section">
+            <div class="controls">
+                <select id="difficultySelect" class="difficulty-select">
+                    <option value="facil">Fácil (8x8)</option>
+                    <option value="medio">Medio (10x10)</option>
+                    <option value="dificil">Difícil (12x12)</option>
+                </select>
+                <button id="newGameBtn">Nuevo Juego</button>
+                <button id="hintBtn">Pista</button>
+                <button id="solveBtn">Resolver</button>
+            </div>
+            <div class="stats">
+                <p>Palabras encontradas: <span id="foundWords">0</span> / 10</p>
+                <p>Tiempo: <span id="timer">00:00</span></p>
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <div class="grid-container">
+                <div id="letterGrid" class="letter-grid"></div>
+            </div>
+            
+            <div class="word-list">
+                <h3>Palabras a encontrar:</h3>
+                <ul id="wordList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lista fija de palabras de la Teoría General de los Sistemas
+        const systemWords = [
+            "SISTEMA",
+            "ENTORNO",
+            "HOMEOSTASIS",
+            "FEEDBACK",
+            "RECURSION",
+            "EMERGENCIA",
+            "ENTROPIA",
+            "ESTRUCTURA",
+            "COMPLEJIDAD",
+            "AUTOPOIESIS"
+        ];
+        
+        // Configuración del juego
+        const difficulties = {
+            facil: { size: 8, wordCount: 5 },
+            medio: { size: 10, wordCount: 7 },
+            dificil: { size: 12, wordCount: 10 }
+        };
+
+        // Variables globales
+        let currentDifficulty = "facil";
+        let gridSize = difficulties[currentDifficulty].size;
+        let wordCount = 10; // Siempre 10 palabras
+        let currentWords = [];
+        let placedWords = [];
+        let grid = [];
+        let startCell = null;
+        let selectedCells = [];
+        let foundWords = 0;
+        let timerInterval;
+        let seconds = 0;
+        let hintsUsed = 0;
+
+        // Elementos del DOM
+        const letterGridEl = document.getElementById("letterGrid");
+        const wordListEl = document.getElementById("wordList");
+        const difficultySelectEl = document.getElementById("difficultySelect");
+        const newGameBtn = document.getElementById("newGameBtn");
+        const hintBtn = document.getElementById("hintBtn");
+        const solveBtn = document.getElementById("solveBtn");
+        const foundWordsEl = document.getElementById("foundWords");
+        const timerEl = document.getElementById("timer");
+
+        // Inicializar juego
+        window.onload = () => {
+            initGame();
+            
+            // Event listeners
+            difficultySelectEl.addEventListener("change", () => {
+                currentDifficulty = difficultySelectEl.value;
+                gridSize = difficulties[currentDifficulty].size;
+            });
+            
+            newGameBtn.addEventListener("click", initGame);
+            hintBtn.addEventListener("click", giveHint);
+            solveBtn.addEventListener("click", solveGame);
+        };
+
+        function initGame() {
+            // Reiniciar variables
+            clearInterval(timerInterval);
+            seconds = 0;
+            hintsUsed = 0;
+            foundWords = 0;
+            updateTimer();
+            startTimer();
+            
+            // Seleccionar todas las palabras
+            currentWords = [...systemWords];
+            
+            // Inicializar juego
+            createGrid();
+            placeWords();
+            fillEmptyCells();
+            renderGrid();
+            renderWordList();
+            
+            // Actualizar estadísticas
+            foundWordsEl.textContent = foundWords;
+        }
+
+        function createGrid() {
+            grid = Array(gridSize).fill().map(() => Array(gridSize).fill(''));
+        }
+
+        function placeWords() {
+            placedWords = [];
+            
+            // Ordenar palabras por longitud (más largas primero)
+            const sortedWords = [...currentWords].sort((a, b) => b.length - a.length);
+            
+            for (const word of sortedWords) {
+                if (!placeWord(word)) {
+                    console.log(`No se pudo colocar la palabra: ${word}`);
+                    // Si no se puede colocar una palabra, recreamos la cuadrícula y volvemos a intentarlo
+                    if (placedWords.length > 0) {
+                        grid = Array(gridSize).fill().map(() => Array(gridSize).fill(''));
+                        placedWords = [];
+                        placeWords();
+                        return;
+                    }
+                }
+            }
+        }
+
+        function placeWord(word) {
+            // Direcciones posibles: horizontal, vertical, diagonal
+            const directions = [
+                [0, 1],   // horizontal →
+                [1, 0],   // vertical ↓
+                [1, 1],   // diagonal ↘
+                [1, -1],  // diagonal ↙
+                [0, -1],  // horizontal ←
+                [-1, 0],  // vertical ↑
+                [-1, -1], // diagonal ↖
+                [-1, 1]   // diagonal ↗
+            ];
+            
+            // Limitar intentos para palabras muy largas en rejillas pequeñas
+            const maxAttempts = gridSize < word.length ? 50 : 200;
+            
+            // Intentar colocar la palabra hasta maxAttempts veces
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const direction = directions[Math.floor(Math.random() * directions.length)];
+                const wordLength = word.length;
+                
+                // Calcular los límites para colocar la palabra
+                let rowStart = 0;
+                let rowEnd = gridSize - 1;
+                let colStart = 0;
+                let colEnd = gridSize - 1;
+                
+                if (direction[0] === 1) rowEnd = gridSize - wordLength;
+                if (direction[0] === -1) rowStart = wordLength - 1;
+                if (direction[1] === 1) colEnd = gridSize - wordLength;
+                if (direction[1] === -1) colStart = wordLength - 1;
+                
+                // Comprobar si los límites son válidos
+                if (rowStart > rowEnd || colStart > colEnd) continue;
+                
+                // Elegir posición inicial aleatoria
+                const row = Math.floor(Math.random() * (rowEnd - rowStart + 1)) + rowStart;
+                const col = Math.floor(Math.random() * (colEnd - colStart + 1)) + colStart;
+                
+                // Comprobar si la palabra se puede colocar
+                let canPlace = true;
+                for (let i = 0; i < wordLength; i++) {
+                    const r = row + i * direction[0];
+                    const c = col + i * direction[1];
+                    if (grid[r][c] !== '' && grid[r][c] !== word[i]) {
+                        canPlace = false;
+                        break;
+                    }
+                }
+                
+                // Colocar la palabra si es posible
+                if (canPlace) {
+                    for (let i = 0; i < wordLength; i++) {
+                        const r = row + i * direction[0];
+                        const c = col + i * direction[1];
+                        grid[r][c] = word[i];
+                    }
+                    
+                    placedWords.push({
+                        word,
+                        start: { row, col },
+                        direction,
+                        found: false
+                    });
+                    
+                    return true;
+                }
+            }
+            
+            // Si llegamos aquí, no se pudo colocar la palabra después de varios intentos
+            return false;
+        }
+
+        function fillEmptyCells() {
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if (grid[i][j] === '') {
+                        grid[i][j] = letters.charAt(Math.floor(Math.random() * letters.length));
+                    }
+                }
+            }
+        }
+
+        function renderGrid() {
+            letterGridEl.innerHTML = '';
+            letterGridEl.style.gridTemplateColumns = `repeat(${gridSize}, 40px)`;
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'letter-cell';
+                    cell.textContent = grid[i][j];
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    
+                    // Event listeners para la selección de letras
+                    cell.addEventListener('mousedown', startSelection);
+                    cell.addEventListener('mouseover', continueSelection);
+                    cell.addEventListener('touchstart', startSelectionTouch);
+                    cell.addEventListener('touchmove', continueSelectionTouch);
+                    
+                    letterGridEl.appendChild(cell);
+                }
+            }
+            
+            // Event listener para finalizar la selección
+            document.addEventListener('mouseup', endSelection);
+            document.addEventListener('touchend', endSelection);
+        }
+
+        function renderWordList() {
+            wordListEl.innerHTML = '';
+            for (const word of currentWords) {
+                const li = document.createElement('li');
+                li.textContent = word;
+                li.dataset.word = word;
+                
+                // Marcar las palabras encontradas
+                const placedWord = placedWords.find(pw => pw.word === word);
+                if (placedWord && placedWord.found) {
+                    li.classList.add('found');
+                }
+                
+                wordListEl.appendChild(li);
+            }
+        }
+
+        function startSelection(e) {
+            if (e.target.classList.contains('letter-cell')) {
+                resetSelection();
+                startCell = e.target;
+                selectCell(startCell);
+            }
+        }
+
+        function startSelectionTouch(e) {
+            if (e.target.classList.contains('letter-cell')) {
+                e.preventDefault();
+                resetSelection();
+                startCell = e.target;
+                selectCell(startCell);
+            }
+        }
+
+        function continueSelection(e) {
+            if (e.buttons !== 1 || !startCell || !e.target.classList.contains('letter-cell')) return;
+            
+            const currentRow = parseInt(e.target.dataset.row);
+            const currentCol = parseInt(e.target.dataset.col);
+            const startRow = parseInt(startCell.dataset.row);
+            const startCol = parseInt(startCell.dataset.col);
+            
+            handleContinueSelection(currentRow, currentCol, startRow, startCol);
+        }
+
+        function continueSelectionTouch(e) {
+            if (!startCell) return;
+            
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (element && element.classList.contains('letter-cell')) {
+                const currentRow = parseInt(element.dataset.row);
+                const currentCol = parseInt(element.dataset.col);
+                const startRow = parseInt(startCell.dataset.row);
+                const startCol = parseInt(startCell.dataset.col);
+                
+                handleContinueSelection(currentRow, currentCol, startRow, startCol);
+            }
+        }
+
+        function handleContinueSelection(currentRow, currentCol, startRow, startCol) {
+            // Determinar la dirección de la selección
+            let rowDir = 0, colDir = 0;
+            
+            if (currentRow > startRow) rowDir = 1;
+            else if (currentRow < startRow) rowDir = -1;
+            
+            if (currentCol > startCol) colDir = 1;
+            else if (currentCol < startCol) colDir = -1;
+            
+            // Solo permitir selecciones en línea recta
+            if (rowDir === 0 && colDir === 0) return;
+            
+            // Verificar si es una línea recta
+            if (rowDir !== 0 && colDir !== 0) {
+                // Es diagonal, verificar si es una diagonal perfecta
+                const rowDiff = Math.abs(currentRow - startRow);
+                const colDiff = Math.abs(currentCol - startCol);
+                if (rowDiff !== colDiff) return;
+            }
+            
+            // Resetear selección previa y seleccionar celdas en la línea
+            resetSelection();
+            selectCell(startCell);
+            
+            const cells = getCellsInLine(startRow, startCol, currentRow, currentCol, rowDir, colDir);
+            for (const cell of cells) {
+                selectCell(cell);
+            }
+        }
+
+        function getCellsInLine(startRow, startCol, endRow, endCol, rowDir, colDir) {
+            const cells = [];
+            let row = startRow;
+            let col = startCol;
+            
+            // Determinar el número de pasos
+            let steps = 0;
+            if (rowDir !== 0) steps = Math.abs(endRow - startRow);
+            else steps = Math.abs(endCol - startCol);
+            
+            for (let i = 1; i <= steps; i++) {
+                row += rowDir;
+                col += colDir;
+                
+                const cell = document.querySelector(`.letter-cell[data-row="${row}"][data-col="${col}"]`);
+                if (cell) cells.push(cell);
+            }
+            
+            return cells;
+        }
+
+        function selectCell(cell) {
+            cell.classList.add('selected');
+            selectedCells.push(cell);
+        }
+
+        function resetSelection() {
+            for (const cell of selectedCells) {
+                cell.classList.remove('selected');
+            }
+            selectedCells = [];
+        }
+
+        function endSelection() {
+            if (selectedCells.length < 2) {
+                resetSelection();
+                return;
+            }
+            
+            // Obtener la palabra seleccionada
+            const selectedWord = selectedCells.map(cell => cell.textContent).join('');
+            
+            // Comprobar si es una palabra válida
+            const foundWordIndex = currentWords.findIndex(word => 
+                word === selectedWord || word === selectedWord.split('').reverse().join('')
+            );
+            
+            if (foundWordIndex !== -1) {
+                const word = currentWords[foundWordIndex];
+                const placedWordIndex = placedWords.findIndex(pw => pw.word === word);
+                
+                if (placedWordIndex !== -1 && !placedWords[placedWordIndex].found) {
+                    // Marcar la palabra como encontrada
+                    placedWords[placedWordIndex].found = true;
+                    foundWords++;
+                    
+                    // Actualizar visualización
+                    for (const cell of selectedCells) {
+                        cell.classList.add('found');
+                    }
+                    
+                    const wordListItem = document.querySelector(`li[data-word="${word}"]`);
+                    if (wordListItem) wordListItem.classList.add('found');
+                    
+                    // Actualizar contador
+                    foundWordsEl.textContent = foundWords;
+                    
+                    // Comprobar si se han encontrado todas las palabras
+                    checkGameCompletion();
+                }
+            }
+            
+            resetSelection();
+        }
+
+        function checkGameCompletion() {
+            if (foundWords === currentWords.length) {
+                clearInterval(timerInterval);
+                setTimeout(() => {
+                    alert(`¡Felicidades! Has encontrado todas las palabras en ${formatTime(seconds)}.`);
+                }, 300);
+            }
+        }
+
+        function giveHint() {
+            // Buscar una palabra no encontrada
+            const unFoundWords = placedWords.filter(pw => !pw.found);
+            if (unFoundWords.length === 0) return;
+            
+            hintsUsed++;
+            const randomWord = unFoundWords[Math.floor(Math.random() * unFoundWords.length)];
+            
+            // Resaltar temporalmente la primera letra
+            const { row, col } = randomWord.start;
+            const firstCell = document.querySelector(`.letter-cell[data-row="${row}"][data-col="${col}"]`);
+            
+            if (firstCell) {
+                firstCell.style.backgroundColor = '#f39c12';
+                setTimeout(() => {
+                    firstCell.style.backgroundColor = '';
+                }, 1500);
+            }
+        }
+
+        function solveGame() {
+            if (confirm("¿Estás seguro de que quieres resolver el juego?")) {
+                clearInterval(timerInterval);
+                
+                // Mostrar todas las palabras
+                for (const placedWord of placedWords) {
+                    if (!placedWord.found) {
+                        placedWord.found = true;
+                        foundWords++;
+                        
+                        // Resaltar la palabra en la cuadrícula
+                        const { word, start, direction } = placedWord;
+                        for (let i = 0; i < word.length; i++) {
+                            const row = start.row + i * direction[0];
+                            const col = start.col + i * direction[1];
+                            const cell = document.querySelector(`.letter-cell[data-row="${row}"][data-col="${col}"]`);
+                            if (cell) cell.classList.add('found');
+                        }
+                        
+                        // Marcar la palabra en la lista
+                        const wordListItem = document.querySelector(`li[data-word="${word}"]`);
+                        if (wordListItem) wordListItem.classList.add('found');
+                    }
+                }
+                
+                // Actualizar contador
+                foundWordsEl.textContent = foundWords;
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                updateTimer();
+            }, 1000);
+        }
+
+        function updateTimer() {
+            timerEl.textContent = formatTime(seconds);
+        }
+
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
